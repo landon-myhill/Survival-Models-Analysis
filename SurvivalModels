@@ -1,0 +1,391 @@
+setwd("~/Desktop/STAT 445/HW4") 
+surv <- read.csv("surv.csv")  
+head(surv)                  
+
+
+#1 
+library(survival)             
+library(survminer)             
+
+# Data Preparation: Assign Groups and Survival Variables
+surv$Group <- ifelse(surv$X %% 2 == 0, "Group1", "Group2") 
+
+# Assign survival time and event indicator based on group
+surv$SurvTime <- ifelse(surv$Group == "Group1", surv$Y1, surv$Y2)
+surv$Delta <- ifelse(surv$Group == "Group1", surv$Delta1, surv$Delta2)
+
+# (a) Kaplan-Meier Survival Curves for Each Group
+# Create survival objects for Group 1 and Group 2
+surv_obj1 <- Surv(surv$SurvTime[surv$Group == "Group1"], surv$Delta[surv$Group == "Group1"])
+surv_obj2 <- Surv(surv$SurvTime[surv$Group == "Group2"], surv$Delta[surv$Group == "Group2"])
+
+# Fit Kaplan-Meier survival curves for each group
+fit1 <- survfit(surv_obj1 ~ 1, data = surv[surv$Group == "Group1", ])
+fit2 <- survfit(surv_obj2 ~ 1, data = surv[surv$Group == "Group2", ])
+
+# Plot survival curves for Group 1 and Group 2 with 95% confidence intervals
+ggsurvplot(
+  fit1, 
+  conf.int = TRUE, 
+  ggtheme = theme_minimal(), 
+  title = "Group 1 Survival Curve", 
+  data = surv[surv$Group == "Group1", ]
+)
+
+ggsurvplot(
+  fit2, 
+  conf.int = TRUE, 
+  ggtheme = theme_minimal(), 
+  title = "Group 2 Survival Curve", 
+  data = surv[surv$Group == "Group2", ]
+)
+
+# (b) Median Survival Time and 95% Confidence Interval
+# Compute median survival time and confidence intervals for Group 1
+median_CI1 <- surv_median(fit1)
+median_CI1 # Display results for Group 1
+
+# Compute median survival time and confidence intervals for Group 2
+median_CI2 <- surv_median(fit2)
+median_CI2 # Display results for Group 2
+
+# (c) Quartile Estimates and Confidence Intervals
+# Compute quartiles (1st, 2nd, and 3rd) of survival times for Group 1
+quartiles1 <- quantile(fit1, probs = c(0.25, 0.5, 0.75))
+quartiles1 # Display quartiles for Group 1
+
+# Compute quartiles (1st, 2nd, and 3rd) of survival times for Group 2
+quartiles2 <- quantile(fit2, probs = c(0.25, 0.5, 0.75))
+quartiles2 # Display quartiles for Group 2
+
+# (d) Log-Rank Test for Equality of Survival Curves
+# Perform a log-rank test to compare the survival curves of the two groups
+log_rank_test <- survdiff(Surv(SurvTime, Delta) ~ Group, data = surv)
+log_rank_test # Display the chi-square statistic and p-value
+
+# (e) Weibull Model Fitting and Survival Function Plot
+# Fit Weibull models for Group 1 and Group 2
+weibull_fit1 <- survreg(Surv(SurvTime, Delta) ~ 1, data = surv[surv$Group == "Group1", ], dist = "weibull")
+weibull_fit2 <- survreg(Surv(SurvTime, Delta) ~ 1, data = surv[surv$Group == "Group2", ], dist = "weibull")
+
+# Create Weibull survival functions
+weibull_surv1 <- function(t) pweibull(t, shape = 1 / weibull_fit1$scale, scale = exp(weibull_fit1$coefficients[1]), lower.tail = FALSE)
+weibull_surv2 <- function(t) pweibull(t, shape = 1 / weibull_fit2$scale, scale = exp(weibull_fit2$coefficients[1]), lower.tail = FALSE)
+
+# Plot Weibull survival function and Kaplan-Meier estimates for Group 1
+curve(weibull_surv1(x), from = 0, to = max(surv$SurvTime), col = "blue", lty = 2, ylab = "Survival Probability", xlab = "Time", main = "Group 1: Weibull vs Kaplan-Meier")
+lines(fit1$time, fit1$surv, col = "red")
+legend("topright", legend = c("Weibull", "Kaplan-Meier"), col = c("blue", "red"), lty = c(2, 1))
+
+# Plot Weibull survival function and Kaplan-Meier estimates for Group 2
+curve(weibull_surv2(x), from = 0, to = max(surv$SurvTime), col = "blue", lty = 2, ylab = "Survival Probability", xlab = "Time", main = "Group 2: Weibull vs Kaplan-Meier")
+lines(fit2$time, fit2$surv, col = "red")
+legend("topright", legend = c("Weibull", "Kaplan-Meier"), col = c("blue", "red"), lty = c(2, 1))
+
+# (f) Estimate Mean Survival Time and Quartiles with Weibull Model
+# Mean survival time and quartiles for Group 1
+mean_weibull1 <- exp(weibull_fit1$coefficients[1]) * gamma(1 + 1 / weibull_fit1$scale)
+quartiles_weibull1 <- quantile(weibull_fit1, probs = c(0.25, 0.5, 0.75))
+
+# Mean survival time and quartiles for Group 2
+mean_weibull2 <- exp(weibull_fit2$coefficients[1]) * gamma(1 + 1 / weibull_fit2$scale)
+quartiles_weibull2 <- quantile(weibull_fit2, probs = c(0.25, 0.5, 0.75))
+
+# Display results
+list(
+  Group1 = list(mean = mean_weibull1, quartiles = quartiles_weibull1),
+  Group2 = list(mean = mean_weibull2, quartiles = quartiles_weibull2)
+)
+
+# (g) Test Equality of Weibull Models
+# Fit Weibull model with group as a predictor
+weibull_model <- survreg(Surv(SurvTime, Delta) ~ Group, data = surv, dist = "weibull")
+summary(weibull_model) # Display model summary and test treatment effect
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#2
+# Define Hazard Function
+# The hazard function is given as λ(t) = 0.5 * t^2.
+hazard_function <- function(t) {
+  0.5 * t^2
+}
+
+# Derive Analytical Form of Survival Function
+survival_function <- function(t) {
+  exp(-(1 / 6) * t^3)
+}
+
+
+# Generate a sequence of time points from 0 to 5.
+time_points <- seq(0, 5, by = 0.1)
+
+# Evaluate the survival function at these time points.
+survival_values <- survival_function(time_points)
+
+# Create the plot of the survival function.
+plot(
+  time_points, survival_values,
+  type = "l", col = "blue", lwd = 2,
+  xlab = "Time (t)", ylab = "Survival Probability (S(t))",
+  main = "Survival Function Over Time"
+)
+
+
+# Calculate S(1), S(2), and S(3) based on the survival function.
+S_1 <- survival_function(1)
+S_2 <- survival_function(2)
+S_3 <- survival_function(3)
+
+# Display the results.
+S_1 # Survival probability at t = 1
+S_2 # Survival probability at t = 2
+S_3 # Survival probability at t = 3
+
+
+
+
+
+
+
+
+#3
+library(survival)  
+library(survminer) 
+
+data("kidney")     
+head(kidney)      
+
+# (a) Kaplan-Meier and Nelson-Aalen Survival Estimates
+# Create a survival object using time and status variables
+surv_obj <- Surv(kidney$time, kidney$status)
+
+# Fit Kaplan-Meier survival estimate
+km_fit <- survfit(surv_obj ~ 1, type = "kaplan-meier")
+
+# Fit Nelson-Aalen survival estimate
+na_fit <- survfit(surv_obj ~ 1, type = "fleming-harrington")
+
+# Plot Kaplan-Meier and Nelson-Aalen survival estimates on the same plot
+ggsurvplot(
+  list("Kaplan-Meier" = km_fit, "Nelson-Aalen" = na_fit),
+  conf.int = TRUE,         # Include confidence intervals
+  combine = TRUE,          # Combine both curves in one plot
+  ggtheme = theme_minimal(), # Use a minimal theme
+  title = "Kaplan-Meier and Nelson-Aalen Survival Estimates",
+  xlab = "Time",           # Label for x-axis
+  ylab = "Survival Probability" # Label for y-axis
+)
+
+# (b) Median Survival Time from Kaplan-Meier Estimate
+# Calculate the median survival time and its confidence interval
+median_surv <- surv_median(km_fit)
+median_surv # Display the result
+
+
+
+
+
+
+
+
+
+
+
+
+#4
+library(survival)
+library(dplyr)   
+
+# Create a data frame with Group and Value columns
+data <- data.frame(
+  Group = rep(c("Prednisolone", "Control"), each = 22),
+  Value = c(2, 6, 12, 54, 56, 68, 89, 96, 96, 125, 128, 131, 140, 141,
+            143, 145, 146, 148, 162, 168, 173, 181, 
+            2, 3, 4, 7, 10, 22, 28, 29, 32, 37, 
+            40, 41, 54, 61, 63, 71, 127, 140, 146, 158, 
+            167, 182)
+)
+
+# Assign 'time' and 'status' to data for survival analysis
+data$time <- data$Value
+data$status <- 1  # Status is 1 indicating event occurrence (e.g., death, failure)
+
+# (a) Fit Weibull, Lognormal, and Exponential Models
+# Fit a Weibull regression model
+weibull_fit <- survreg(Surv(time, status) ~ Group, data = data, dist = "weibull")
+
+# Fit a Lognormal regression model
+lognormal_fit <- survreg(Surv(time, status) ~ Group, data = data, dist = "lognormal")
+
+# Fit an Exponential regression model
+exponential_fit <- survreg(Surv(time, status) ~ Group, data = data, dist = "exponential")
+
+# (b) Calculate Median Survival Time and 95% CI
+# Function to calculate the median survival time from the model
+get_median <- function(model, group) {
+  mu <- coef(model)[1] + ifelse(group == "Prednisolone", coef(model)[2], 0)
+  median_time <- exp(mu)  # Median is the exponential of the linear predictor
+  return(median_time)
+}
+
+# Calculate the median survival time for Prednisolone and Control groups
+median_prednisolone <- get_median(weibull_fit, "Prednisolone")
+median_control <- get_median(weibull_fit, "Control")
+
+# Function to calculate the 95% confidence interval for median survival time
+get_median_ci <- function(model, group) {
+  mu <- coef(model)[1] + ifelse(group == "Prednisolone", coef(model)[2], 0)
+  se <- sqrt(vcov(model)[1, 1])  # Standard error of the intercept
+  ci_lower <- exp(mu - 1.96 * se)  # Lower bound of CI
+  ci_upper <- exp(mu + 1.96 * se)  # Upper bound of CI
+  return(c(ci_lower, ci_upper))
+}
+
+# Calculate the 95% CI for median survival time for both groups
+ci_prednisolone <- get_median_ci(weibull_fit, "Prednisolone")
+ci_control <- get_median_ci(weibull_fit, "Control")
+
+# (c) Calculate Survival Probability at Time = 100
+# Function to calculate survival probability at a given time point
+get_survival_probability <- function(model, group, time) {
+  mu <- coef(model)[1] + ifelse(group == "Prednisolone", coef(model)[2], 0)
+  scale <- exp(coef(model)[1])  # Intercept is log(scale)
+  shape <- 1 / model$scale       # Shape parameter from model
+  S_t <- exp(-((time / scale) ^ shape))  # Survival probability formula
+  return(S_t)
+}
+
+# Calculate the survival probabilities at time = 100 for both groups
+S_100_prednisolone <- get_survival_probability(weibull_fit, "Prednisolone", 100)
+S_100_control <- get_survival_probability(weibull_fit, "Control", 100)
+
+# (d) Fit Cox Proportional Hazards Model and Calculate Survival Probability
+# Fit a Cox proportional hazards model
+cox_model <- coxph(Surv(time, status) ~ Group, data = data)
+
+# Create survival function based on the Cox model
+cox_fit <- survfit(cox_model, newdata = data.frame(Group = c("Prednisolone", "Control")))
+
+# Calculate survival probability at time = 100 from the Cox model
+survival_at_100_cox <- summary(cox_fit, times = 100)
+
+# Print results for median survival time, CI, and survival probabilities
+cat("Median Survival Time for Prednisolone:", median_prednisolone, "\n")
+cat("Median Survival Time for Control:", median_control, "\n")
+cat("95% CI for Median Survival (Prednisolone):", ci_prednisolone, "\n")
+cat("95% CI for Median Survival (Control):", ci_control, "\n")
+cat("S(100) for Prednisolone:", S_100_prednisolone, "\n")
+cat("S(100) for Control:", S_100_control, "\n")
+cat("Survival probability at time 100 from Cox model (Prednisolone):", survival_at_100_cox$surv[1], "\n")
+cat("Survival probability at time 100 from Cox model (Control):", survival_at_100_cox$surv[2], "\n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#5
+library(survival) 
+library(survminer) 
+library(dplyr)      
+
+# Load and subset the colon cancer dataset to include only relevant data
+data("colon")
+colon_data <- subset(colon, etype == 1)  # Filter for event type = 1 (e.g., death)
+colon_data$differ <- factor(colon_data$differ)  # Convert 'differ' to a factor
+colon_data$extent <- factor(colon_data$extent)  # Convert 'extent' to a factor
+colon_data_clean <- na.omit(colon_data)  # Remove missing values
+
+# (a) Fit Initial Model and Perform Stepwise Selection
+# Define survival object
+surv_obj <- Surv(colon_data_clean$time, colon_data_clean$status)
+
+# Fit initial Weibull regression model with multiple predictors
+initial_model <- survreg(surv_obj ~ sex + age + perfor + adhere + nodes + differ + extent, 
+                         data = colon_data_clean, dist = "weibull")
+
+# Perform stepwise selection to choose the best model
+best_model <- step(initial_model, direction = "both")
+
+# (b) Estimate Survival Probability and Confidence Interval at Time = 730
+# Create new data for prediction
+new_data <- data.frame(
+  sex = factor("Male", levels = levels(colon_data_clean$sex)),
+  age = 60,
+  perfor = 0,
+  adhere = 0,
+  nodes = 2,
+  differ = factor(3, levels = levels(colon_data_clean$differ)),
+  extent = factor(2, levels = levels(colon_data_clean$extent))
+)
+
+# Predict the linear predictor for the new data
+lp <- predict(best_model, newdata = new_data)
+
+# Calculate scale and shape parameters from the model
+scale <- exp(-lp)  # Exponentiated linear predictor gives the scale parameter
+shape <- 1 / best_model$scale  # Shape parameter from the Weibull distribution
+
+# Calculate survival probability at time = 730
+S_730 <- exp(-((730 / scale) ^ shape))
+
+# Calculate standard error of the linear predictor and its 95% confidence interval
+se_lp <- sqrt(vcov(best_model) %*% diag(1, nrow = ncol(new_data)))  # Standard error of LP
+ci_lower <- exp(-((730 / (scale * exp(1.96 * se_lp))) ^ shape))  # Lower bound of CI
+ci_upper <- exp(-((730 / (scale * exp(-1.96 * se_lp))) ^ shape))  # Upper bound of CI
+
+# Display results
+cat("Estimated S(730):", S_730, "\n")
+cat("95% CI for S(730):", ci_lower, "-", ci_upper, "\n")
+
+# (c) Likelihood Ratio Test to Assess the Effect of Age
+# Fit a model without the 'age' predictor
+model_without_age <- survreg(surv_obj ~ sex + perfor + adhere + nodes + differ + extent, 
+                             data = colon_data_clean, dist = "weibull")
+
+# Perform likelihood ratio test to compare models with and without 'age'
+LR_statistic <- -2 * (logLik(model_without_age) - logLik(best_model))
+p_value <- 1 - pchisq(LR_statistic, df = 1)  # 1 degree of freedom for the difference in parameters
+
+# Display hypotheses and results
+cat("\nHypotheses:\n")
+cat("H0: Age has no effect on survival time.\n")
+cat("H1: Age has a significant effect on survival time.\n")
+
+cat("\nLikelihood Ratio Test Statistic:", LR_statistic, "\n")
+cat("p-value:", p_value, "\n")
+
+# Conclusion based on p-value
+if (p_value < 0.05) {
+  cat("Conclusion: Reject H0. Age has a statistically significant effect on survival time.\n")
+} else {
+  cat("Conclusion: Fail to reject H0. Age does not have a statistically significant effect on survival time.\n")
+}
+
+
+
